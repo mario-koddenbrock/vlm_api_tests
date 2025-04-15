@@ -60,17 +60,20 @@ with torch.no_grad():
     text_features_oc /= text_features_oc.norm(dim=-1, keepdim=True)
 
 # Evaluate
-# Evaluate Hugging Face CLIP
+limited_batches = []
+for batch_idx, batch in enumerate(testloader):
+    if batch_idx >= num_batches:
+        break
+    limited_batches.append(batch)
+
+# Hugging Face Evaluation
 y_true_hf, y_pred_hf = [], []
 start_hf = time.time()
 
-for batch_idx, (images, labels) in enumerate(tqdm(testloader, "Hugging Face Inference")):
-    if batch_idx >= num_batches:
-        break
-
+for images, labels in tqdm(limited_batches, "Hugging Face Inference"):
     y_true_hf.extend(labels.numpy())
 
-    pil_images = [transforms.ToPILImage()(img.cpu() if isinstance(img, torch.Tensor) else img) for img in images]
+    pil_images = [transforms.ToPILImage()(img.cpu()) for img in images]
     with torch.no_grad():
         inputs_hf = hf_processor(images=pil_images, return_tensors="pt", padding=True).to(device)
         image_features_hf = hf_model.get_image_features(**inputs_hf)
@@ -82,14 +85,11 @@ for batch_idx, (images, labels) in enumerate(tqdm(testloader, "Hugging Face Infe
 elapsed_hf = time.time() - start_hf
 acc_hf = (np.array(y_true_hf) == np.array(y_pred_hf)).mean() * 100
 
-# Evaluate OpenCLIP
+# OpenCLIP Evaluation
 y_true_oc, y_pred_oc = [], []
 start_oc = time.time()
 
-for batch_idx, (images, labels) in enumerate(tqdm(testloader, "OpenCLIP Inference")):
-    if batch_idx >= num_batches:
-        break
-
+for images, labels in tqdm(limited_batches, "OpenCLIP Inference"):
     y_true_oc.extend(labels.numpy())
 
     images_oc = images.to(device)
@@ -119,6 +119,5 @@ plt.tight_layout()
 
 #save fig
 plt.savefig("openclip_vs_huggingface.png", dpi=300, bbox_inches='tight')
-
 plt.show()
 
